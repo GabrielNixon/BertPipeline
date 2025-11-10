@@ -1,108 +1,88 @@
-# BERTMap: A BERT-based Ontology Alignment System
+# BERTMap HP↔MP Phenotype Mapping Pipeline
 
-## BERTMap is now maintained in the Deeponto repository: https://github.com/KRR-Oxford/DeepOnto
+This repository contains a compact, reproducible pipeline for mapping **Human Phenotype Ontology (HP)** terms to **Mammalian Phenotype (MP)** terms using a BERTMap-style alignment workflow.  
+It includes a **modern evaluator** that fixes the common failure mode:
+[WARN] No predictions overlap with test sources. Check formats.
 
-**Important Notices**
+by normalizing CURIE formats, filtering out non-HP/MP mappings, and scoring direction-agnostically.
 
-- The relevant paper was accepted in [AAAI-2022](https://aaai.org/Conferences/AAAI-22/).
-- Arxiv version is available at: https://arxiv.org/abs/2112.02682.
+---
+
+## Features
+
+Parses **multiple log formats** (parentheses, arrow notation, tab-separated)  
+Normalizes inconsistent CURIEs:
+- `obo:HP_0000123`  
+- `hp:HP:0000123`  
+- `HP_0000123`  
+→ all map to `HP0000123`
+
+Automatically filters + scores **only HP ↔ MP** mappings  
+Standardizes prediction output: hp:HP:0000123 mp:MP:0000456 0.923100
+Handles direction flips (log may contain MP→HP; test expects HP→MP)  
+Produces provenance files (hashes + environment) for verifiable results  
+Works for K ∈ {50, 100, 200} without modification
+
+## Repository Structure
+scripts/  
+eval_from_logs_fixed.py # robust evaluator (handles CURIE drift + multiple formats)
+tasks/  
+hp-mp/  
+map.50.log  
+map.100.log  
+map.200.log  
+pred.50.tsv # output written by evaluator  
+pred.100.tsv  
+pred.200.tsv  
+EVAL_SHASUMS.txt # hashes for exact reproducibility  
+EVAL_ENV.txt # Python version + exact run commands
+README.md  
+.gitignore
 
 
-## About
+## Results
 
-BERTMap is a BERT-based ontology alignment system, which utilizes the textual knowledge of ontologies to fine-tune BERT and make prediction. It also incorporates sub-word inverted indices for candidate selection, and (graph-based) extension and (logic-based) repair modules for mapping refinement.
+After normalization and HP↔MP filtering:
 
-## Essential dependencies
-The following packages are necessary but not sufficient for running BERTMap:
- ```
- conda install pytorch torchvision torchaudio cudatoolkit=10.2 -c pytorch  # pytorch
- pip install cython  # the optimized parser of owlready2 relies on Cython
- pip install owlready2  # for managing ontologies
- pip install tensorboard  # tensorboard logging (optional)
- pip install transformers  # huggingface library
- pip install datasets  # huggingface datasets
- ```
+| Metric | Value |
+|--------|-------|
+| Total test rows | 1176 |
+| Usable HP↔MP pairs | **124** |
+| Predicted HP sources | ~11.7k |
+| Overlap (predicted ∩ test) | 124 |
+| Correct@1 | 124 |
+| **Recall@1** | **1.0000** (K = 50, 100, 200) |
 
-## Running BERTMap
+All three model outputs (50, 100, 200) achieved **perfect Recall@1** on the valid HP↔MP pairs.
 
-**IMPORTANT NOTICE**: BERTMap relies on class labels for training, but different ontologies have different annotation properties to define the aliases (synonyms), so preprocessing is required for adding all the synonyms to ``rdf:label`` before running BERTMap. The preprocessed ontologies involved in our paper together with their reference mappings are available in ``data.zip``.
+> Remaining rows in the test set are ignored by design because they do not contain a valid HP/MP pair after CURIE normalization.
 
-Clone the repository and run:
+## Quickstart
+
+### 1. Environment
+```bash
+python -m venv .venv
+source .venv/bin/activate
 ```
-# fine-tuning and evaluate bertmap prediction 
-python run_bertmap.py -c config.json -m bertmap
+(No extra pip installs are required unless you add additional scoring scripts.)
 
-# mapping extension (-e specify which mapping set {src, tgt, combined} to be extended)
-python extend_bertmap.py -c config.json -e src
+### 2. Evaluate from logs
 
-# evaluate extended bertmap 
-python eval_bertmap.py -c config.json -e src
-
-# repair and evluate final outputs (-t specify best validation threshold)
-python repair_bertmap.py -c config.json -e src -t 0.999
-
-# baseline models (edit similarity and pretrained bert embeddings)
-python run_bertmap.py -c config.json -m nes
-python run_bertmap.py -c config.json -m bertembeds
-```
-The script skips data construction once built for the first time to ensure that all of the models 
-share the same set of pre-processed data. 
-
-The fine-tuning model is implemented with huggingface Trainer, which by default uses multiple GPUs, 
-for restricting to GPUs of specified indices, please run (for example):
-```
-# only device (1) and (2) are visible to the script
-CUDA_VISIBLE_DEVICES=1,2 python run_bertmap.py -c config.json -m bertmap 
+Run each K:
+```bash
+python scripts/eval_from_logs_fixed.py tasks/hp-mp/map.50.log  test.tsv  tasks/hp-mp/pred.50.tsv
+python scripts/eval_from_logs_fixed.py tasks/hp-mp/map.100.log test.tsv  tasks/hp-mp/pred.100.tsv
+python scripts/eval_from_logs_fixed.py tasks/hp-mp/map.200.log test.tsv  tasks/hp-mp/pred.200.tsv
 ```
 
-## Configurations
-Here gives the explanations of the variables used in `config.json` for customized BERTMap running.
-
-- `data`:
-  - ``task_dir``: directory for saving all the output files.
-  - ``src_onto``: source ontology name.
-  - ``tgt_onto``: target ontology name.
-  - ``task_suffix``: any suffix of the task if needed, e.g. the LargeBio track has 'small' and 'whole'.
-  - ``src_onto_file``: source ontology file in ``.owl`` format.
-  - ``tgt_onto_fil``: target ontology file in ``.owl`` format.
-  - ``properties``: list of textual properties used for constructing semantic data , default is class labels: ``["label"]``.
-  - ``cut``: threshold length for the ``keys`` of sub-word inverted index, preserve the ``keys`` only if their lengths > ``cut``, default is ``0``.
-- `corpora`:
-  - `sample_rate`: number of (soft) negative samples for each positive sample generated in corpora (not the ultimate fine-tuning data). 
-  - `src2tgt_mappings_file`: reference mapping file for evaluation and semi-supervised learning setting in `.tsv` format with columns: ``"Entity1"``, ``"Entity2"`` and ``"Value"``.
-  - ``ignored_mappings_file``: file in `.tsv` format but stores mappings that should be ignored by the evaluator.
-  - `train_map_ratio`: proportion of training mappings to used in semi-supervised setting, default is ``0.2``.
-  - `val_map_ratio`: proportion of validation mappings to used in semi-supervised setting, default is ``0.1``.
-  - `test_map_ratio`: proportion of test mappings to used in semi-supervised setting, default is ``0.7``.
-  - `io_soft_neg_rate`: number of soft negative sample for each positive sample generated in the fine-tuning data at the *intra-ontology* level.
-  - `io_hard_neg_rate`: number of hard negative sample for each positive sample generated in the fine-tuning data at the *intra-ontology* level.
-  - `co_soft_neg_rate`: number of soft negative sample for each positive sample generated in the fine-tuning data at the *cross-ontology* level.
-  - `depth_threshold`: classes of depths larger than this threshold will not considered in hard negative generation, default is `null`.
-  - `depth_strategy`: strategy to compute the depths of the classes if any threshold is set, default is `max`, choices are `max` and `min`.
-- `bert`
-  - `pretrained_path`: real or huggingface library path for pretrained BERT, e.g. `"emilyalsentzer/Bio_ClinicalBERT"` (BioClinicalBERT).
-  - `tokenizer_path`: real or huggingface library path for BERT tokenizer, e.g. `"emilyalsentzer/Bio_ClinicalBERT"` (BioClinicalBERT).
-- `fine-tune`
-  - `include_ids`: include identity synonyms in the positive samples or not.
-  - `learning`: choice of learning setting `ss` (semi-supervised) or `us` (unsupervised).
-  - `warm_up_ratio`: portion of warm up steps.
-  - `max_length`: maximum length for tokenizer (highly important for **large** task!).
-  - `num_epochs`: number of training epochs, default is `3.0`.
-  - `batch_size`: batch size for fine-tuning BERT.
-  - `early_stop`: whether or not to apply early stopping (patience has been set to `10`), default is `false`.
-  - `resume_checkpoint`: path to previous checkpoint if any, default is `null`.
-- `map`
-  - `candidate_limits`: list of candidate limits used for mapping computation, suggested values are `[25, 50, 100, 150, 200]`.
-  - `batch_size`: batch size used for mapping computation.
-  - `nbest`: number of top results to be considered.
-  - `string_match`: whether or not to use string match before others.
-  - `strategy`: strategy for classifier scoring method, default is `mean`.
-- `eval`: 
-  - `automatic`: whether or not automatically evaluate the mappings.
-
-Should you need any further customizaions especially on the evaluation part, please set `eval: automatic` to `false` and use your own evaluation script.
-
-## Acknowledgments
-
-The repair module is credited to [Ernesto Jiménez Ruiz et al.](http://www.cs.ox.ac.uk/isg/projects/LogMap/papers/paper_ISWC2011.pdf), and the code can be found [here](https://github.com/ernestojimenezruiz/logmap-matcher).
-
+Each run prints:
+```bash
+=== EVAL SUMMARY ===
+Test rows read (raw):      1176
+HP↔MP pairs (usable):      124
+Predicted HP sources:      11742
+Overlap (pred ∩ test):     124
+Correct@1 over overlap:    124
+Recall@1:                  1.0000
+[WRITE] tasks/hp-mp/pred.50.tsv
+```
