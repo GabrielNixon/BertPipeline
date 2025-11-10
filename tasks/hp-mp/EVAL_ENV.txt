@@ -1,0 +1,5 @@
+Python 3.14.0
+Ran on Mon Nov 10 20:27:24 UTC 2025 UTC in /Users/gabrielnixonraj/Desktop/DATA/BERTMap
+python scripts/eval_from_logs_fixed.py tasks/hp-mp/map.50.log  ~/Desktop/DATA/pairs_hp_mp/test.tsv tasks/hp-mp/pred.50.tsv
+python scripts/eval_from_logs_fixed.py tasks/hp-mp/map.100.log ~/Desktop/DATA/pairs_hp_mp/test.tsv tasks/hp-mp/pred.100.tsv
+python scripts/eval_from_logs_fixed.py tasks/hp-mp/map.200.log ~/Desktop/DATA/pairs_hp_mp/test.tsv tasks/hp-mp/pred.200.tsv

@@ -1,0 +1,47 @@
+{
+  "data": {
+    "task_dir": "tasks/hp-mp",
+    "src_onto": "hp",
+    "tgt_onto": "mp",
+    "task_suffix": "",
+    "src_onto_file": "/Users/gabrielnixonraj/Desktop/DATA/hp_enriched_patched.owl",
+    "tgt_onto_fil": "/Users/gabrielnixonraj/Desktop/DATA/mp_enriched_patched.owl",
+    "tgt_onto_file": "/Users/gabrielnixonraj/Desktop/DATA/mp_enriched_patched.owl",
+    "properties": ["label"],
+    "cut": false
+  },
+  "corpora": {
+    "src2tgt_mappings_file": "/Users/gabrielnixonraj/Desktop/DATA/pairs_hp_mp/train_for_bertmap.tsv",
+    "train_map_ratio": 0.9,
+    "val_map_ratio": 0.05,
+    "test_map_ratio": 0.05,
+    "io_soft_neg_rate": 1,
+    "io_hard_neg_rate": 0,
+    "co_soft_neg_rate": 0
+  },
+  "bert": {
+    "pretrained_path": "emilyalsentzer/Bio_ClinicalBERT",
+    "tokenizer_path": "emilyalsentzer/Bio_ClinicalBERT"
+  },
+  "fine-tune": {
+    "include_ids": true,
+    "learning": "ss",
+    "max_length": 128,
+    "num_epochs": 3,
+    "batch_size": 16,
+    "warm_up_ratio": 0.1,
+    "early_stop": false,
+    "resume_checkpoint": null
+  },
+  "map": {
+    "candidate_limits": [50, 100, 200],
+    "batch_size": 64,
+    "nbest": 10,
+    "string_match": true,
+    "strategy": "mean"
+  },
+  "eval": {
+    "automatic": true
+  }
+}
+
